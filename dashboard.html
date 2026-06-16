@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>H2·MPC — Sala de control de la hidrogenera portátil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0C141D; --panel:#131F2B; --panel2:#0F1923; --line:#243443;
+  --ink:#DEE9F1; --muted:#7E94A8; --h2:#5BD6EE; --elec:#FFB454;
+  --comp:#FF7A66; --ok:#6FDB95; --naive:#8C9DAE; --mp:#B48CFF;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --disp:"Chakra Petch",system-ui,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{
+  font-family:var(--body); color:var(--ink); background:
+    radial-gradient(1200px 500px at 70% -10%, #14283a55, transparent),
+    var(--bg);
+  min-height:100vh; padding:18px 20px 92px;
+}
+.wrap{max-width:1180px;margin:0 auto}
+.eyebrow{font-family:var(--disp);font-size:10.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted)}
+/* ---------- header ---------- */
+header{display:flex;flex-wrap:wrap;gap:14px;align-items:stretch;margin-bottom:14px}
+.brand{flex:1 1 260px;min-width:240px}
+.brand h1{font-family:var(--disp);font-weight:700;font-size:25px;line-height:1.1;margin-top:4px}
+.brand h1 b{color:var(--h2)}
+.brand p{color:var(--muted);font-size:12.5px;margin-top:6px;max-width:340px}
+.clockbox{display:flex;flex-direction:column;justify-content:center;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 22px}
+.clockbox .t{font-family:var(--mono);font-size:34px;font-weight:600;letter-spacing:.04em}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(118px,1fr));gap:10px;flex:2 1 480px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;position:relative;overflow:hidden}
+.kpi .v{font-family:var(--mono);font-size:21px;font-weight:600;margin-top:5px}
+.kpi .s{font-size:10.5px;color:var(--muted);margin-top:2px}
+.kpi.eta .v{color:var(--h2)} .kpi.save .v{color:var(--ok)}
+.kpi.cost .v{color:var(--elec)} .kpi.naive .v{color:var(--naive)}
+.kpi.save::after{content:"";position:absolute;inset:0;border-radius:10px;
+  border:1px solid #6FDB9533;pointer-events:none}
+/* ---------- panels ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:14px}
+.panel h2{font-family:var(--disp);font-size:13px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink);display:flex;gap:10px;align-items:baseline}
+.panel h2 small{font-family:var(--body);font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400}
+svg{display:block;width:100%;height:auto}
+text{font-family:var(--mono)}
+/* ---------- grid central ---------- */
+.mid{display:grid;grid-template-columns:7fr 5fr;gap:14px}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.chart-val{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;font-size:10.5px;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+/* ---------- log ---------- */
+.log{list-style:none;max-height:330px;overflow-y:auto}
+.log li{display:flex;gap:10px;padding:8px 6px;border-bottom:1px dashed var(--line);
+  font-size:12.5px;color:var(--muted);opacity:.32;transition:opacity .4s}
+.log li.on{opacity:1;color:var(--ink)}
+.log li.on:last-of-type,.log li.latest{background:#5bd6ee0d;border-radius:6px}
+.log li .tt{font-family:var(--mono);color:var(--h2);font-size:11.5px;white-space:nowrap;padding-top:1px}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.chip .l{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-family:var(--disp)}
+.chip .v{font-family:var(--mono);font-size:15px;margin-top:2px}
+.bar{height:5px;background:var(--panel2);border:1px solid var(--line);border-radius:3px;margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--h2);width:0%}
+/* ---------- playback ---------- */
+.deck{position:fixed;left:0;right:0;bottom:0;background:#0c141df2;border-top:1px solid var(--line);
+  backdrop-filter:blur(6px);padding:10px 20px;z-index:50}
+.deck .row{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px}
+button{font-family:var(--disp);font-size:12px;letter-spacing:.06em;color:var(--ink);
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--h2)}
+button:focus-visible{outline:2px solid var(--h2);outline-offset:2px}
+button.play{background:var(--h2);color:#06222b;font-weight:700;min-width:118px}
+button.spd.on{border-color:var(--h2);color:var(--h2)}
+input[type=range]{flex:1;accent-color:var(--h2)}
+.deck .tm{font-family:var(--mono);font-size:13px;color:var(--muted);min-width:118px;text-align:right}
+/* ---------- banner final ---------- */
+.final{display:none;border:1px solid #6FDB9555;background:linear-gradient(90deg,#6fdb9514,transparent);
+  border-radius:12px;padding:13px 16px;margin-bottom:14px;font-size:14px}
+.final b{color:var(--ok);font-family:var(--mono)}
+.final.show{display:block;animation:pop .5s ease}
+@keyframes pop{from{transform:translateY(6px);opacity:0}}
+@media (max-width:920px){.mid,.charts{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}}
+@media (prefers-reduced-motion:reduce){.final.show{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <div class="eyebrow">Hidrogenera portátil · prototipo de control</div>
+    <h1>H2·<b>MPC</b> económico</h1>
+    <p>El controlador conoce la ETA del camión y el precio horario de la
+       electricidad, y decide cuándo producir y cuándo comprimir.</p>
+  </div>
+  <div class="clockbox"><div class="eyebrow">Hora</div><div class="t" id="clock">06:00</div></div>
+  <div class="kpis">
+    <div class="kpi eta"><div class="eyebrow">ETA camión</div><div class="v" id="kEta">—</div><div class="s" id="kEtaS">en ruta</div></div>
+    <div class="kpi cost"><div class="eyebrow">Coste con MPC</div><div class="v" id="kCost">0,00 €</div><div class="s" id="kCostS">electricidad acumulada</div></div>
+    <div class="kpi naive"><div class="eyebrow">Sin optimizar</div><div class="v" id="kNaive">0,00 €</div><div class="s">misma demanda, a tope</div></div>
+    <div class="kpi save"><div class="eyebrow">Ahorro MPC</div><div class="v" id="kSave">0,00 €</div><div class="s" id="kSaveS">—</div></div>
+  </div>
+</header>
+
+<div class="final" id="final"></div>
+
+<section class="panel">
+  <h2>Ruta del camión <small id="routeSub">— 210 km hasta la hidrogenera · depósito 820 L @ 350 bar</small></h2>
+  <svg id="route" viewBox="0 0 1140 96" aria-label="Posición del camión en la ruta"></svg>
+</section>
+
+<div class="mid">
+  <section class="panel">
+    <h2>Sinóptico de planta <small>electrolizador → LP 200 bar → compresor 2 etapas → MP 350 / HP 500 → dispensador</small></h2>
+    <svg id="pid" viewBox="0 0 660 372" aria-label="Esquema de la hidrogenera"></svg>
+  </section>
+  <section class="panel">
+    <h2>Registro de operación</h2>
+    <ul class="log" id="log"></ul>
+    <div class="chips">
+      <div class="chip"><div class="l">Electrolizador</div><div class="v" id="cEly">0 kW</div></div>
+      <div class="chip"><div class="l">Compresor</div><div class="v" id="cComp">0,0 kg/h</div></div>
+      <div class="chip"><div class="l">Precio eléctrico</div><div class="v" id="cPrice">— €/MWh</div></div>
+      <div class="chip"><div class="l">H₂ entregado</div><div class="v" id="cDeliv">0,0 kg</div>
+        <div class="bar"><i id="cDelivBar"></i></div></div>
+    </div>
+  </section>
+</div>
+
+<div class="charts">
+  <section class="panel"><h2>Precio eléctrico <small class="chart-val" id="vPrice"></small></h2>
+    <svg id="chA" viewBox="0 0 540 190"></svg></section>
+  <section class="panel"><h2>Potencias: plan y ejecución <small class="chart-val" id="vPow"></small></h2>
+    <svg id="chB" viewBox="0 0 540 190"></svg>
+    <div class="legend"><span><i style="background:var(--h2)"></i>Electrolizador (MPC)</span>
+      <span><i style="background:var(--h2);opacity:.45"></i>Plan futuro</span>
+      <span><i style="background:var(--comp)"></i>Compresor</span>
+      <span><i style="background:var(--naive)"></i>Sin optimizar</span></div></section>
+  <section class="panel"><h2>Masa en tanques <small class="chart-val" id="vTank"></small></h2>
+    <svg id="chC" viewBox="0 0 540 190"></svg>
+    <div class="legend"><span><i style="background:var(--h2)"></i>LP 200 bar</span>
+      <span><i style="background:var(--mp)"></i>MP 350 bar</span>
+      <span><i style="background:var(--elec)"></i>HP 500 bar</span></div></section>
+  <section class="panel"><h2>Coste acumulado <small class="chart-val" id="vCost"></small></h2>
+    <svg id="chD" viewBox="0 0 540 190"></svg>
+    <div class="legend"><span><i style="background:var(--h2)"></i>MPC</span>
+      <span><i style="background:var(--naive)"></i>Operación a tope (baseline)</span>
+      <span><i style="background:var(--ok)"></i>Ahorro</span></div></section>
+</div>
+
+</div>
+
+<div class="deck"><div class="row">
+  <button class="play" id="bPlay">▶ Reproducir</button>
+  <button class="spd on" data-s="1.6" aria-pressed="true">×1</button>
+  <button class="spd" data-s="4" aria-pressed="false">×3</button>
+  <button class="spd" data-s="9" aria-pressed="false">×8</button>
+  <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Línea temporal">
+  <div class="tm" id="tm">06:00 / 10:25</div>
+</div></div>
+
+<script>
+const DATA = {"meta": {"dt_min": 5.0, "t0": "06:00", "n": 54, "route_km": 210.0, "jam": {"t_start": 70.0, "t_end": 95.0, "v_kmh": 15.0}, "P_ely_max": 400.0, "f_comp_max": 30.0, "caps": {"lp": 12.0, "mp": 20.0, "hp": 15.0}, "req": {"mp": 11.8, "hp": 7.5}}, "prices": [96.0, 99.2, 102.3, 105.5, 108.7, 111.8, 115.0, 118.2, 121.3, 124.5, 127.7, 130.8, 134.0, 130.2, 126.3, 122.5, 118.7, 114.8, 111.0, 107.2, 103.3, 99.5, 95.7, 91.8, 88.0, 85.0, 82.0, 79.0, 76.0, 73.0, 70.0, 67.0, 64.0, 61.0, 58.0, 55.0, 52.0, 50.7, 49.3, 48.0, 46.7, 45.3, 44.0, 42.7, 41.3, 40.0, 38.7, 37.3, 36.0, 35.6, 35.2, 34.8, 34.3, 33.9], "steps": [{"t": 0.0, "clock": "06:00", "price": 96.0, "truck": {"km": 5.0, "frac": 0.0238, "v": 60, "eta": 154.0, "fuel": 16.25, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 94.52, "cost": 3.96}, "plan": {"k0": 0, "P": [0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 5.0, "clock": "06:05", "price": 99.2, "truck": {"km": 10.0, "frac": 0.0476, "v": 60, "eta": 150.0, "fuel": 15.9, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 121.41, "cost": 8.27}, "plan": {"k0": 1, "P": [0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 10.0, "clock": "06:10", "price": 102.3, "truck": {"km": 15.0, "frac": 0.0714, "v": 88, "eta": 146.0, "fuel": 15.55, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 11.68}, "plan": {"k0": 2, "P": [0.0, -0.0, -0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 15.0, "clock": "06:15", "price": 105.5, "truck": {"km": 22.3, "frac": 0.1063, "v": 88, "eta": 143.0, "fuel": 15.04, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 82.42, "cost": 15.92}, "plan": {"k0": 3, "P": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3, 99.3], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 20.0, "clock": "06:20", "price": 108.7, "truck": {"km": 29.7, "frac": 0.1413, "v": 88, "eta": 137.0, "fuel": 14.52, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 19.54}, "plan": {"k0": 4, "P": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 25.0, "clock": "06:25", "price": 111.8, "truck": {"km": 37.0, "frac": 0.1762, "v": 88, "eta": 132.0, "fuel": 14.01, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 82.42, "cost": 24.04}, "plan": {"k0": 5, "P": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 30.0, "clock": "06:30", "price": 115.0, "truck": {"km": 44.3, "frac": 0.2111, "v": 88, "eta": 127.0, "fuel": 13.5, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 27.87}, "plan": {"k0": 6, "P": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 35.0, "clock": "06:35", "price": 118.2, "truck": {"km": 51.7, "frac": 0.246, "v": 88, "eta": 121.0, "fuel": 12.98, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 95.31, "cost": 32.75}, "plan": {"k0": 7, "P": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 40.0, "clock": "06:40", "price": 121.3, "truck": {"km": 59.0, "frac": 0.281, "v": 88, "eta": 116.0, "fuel": 12.47, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 36.79}, "plan": {"k0": 8, "P": [0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 45.0, "clock": "06:45", "price": 124.5, "truck": {"km": 66.3, "frac": 0.3159, "v": 88, "eta": 110.0, "fuel": 11.96, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 95.31, "cost": 41.93}, "plan": {"k0": 9, "P": [0.0, 0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 50.0, "clock": "06:50", "price": 127.7, "truck": {"km": 73.7, "frac": 0.3508, "v": 88, "eta": 105.0, "fuel": 11.44, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 46.19}, "plan": {"k0": 10, "P": [0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 55.0, "clock": "06:55", "price": 130.8, "truck": {"km": 81.0, "frac": 0.3857, "v": 88, "eta": 100.0, "fuel": 10.93, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 95.31, "cost": 51.59}, "plan": {"k0": 11, "P": [0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 60.0, "clock": "07:00", "price": 134.0, "truck": {"km": 88.3, "frac": 0.4206, "v": 88, "eta": 94.0, "fuel": 10.42, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 56.05}, "plan": {"k0": 12, "P": [0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 65.0, "clock": "07:05", "price": 130.2, "truck": {"km": 95.7, "frac": 0.4556, "v": 15.0, "eta": 89.0, "fuel": 9.9, "arrived": false, "jam": true, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 95.31, "cost": 61.43}, "plan": {"k0": 13, "P": [0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, -0.0, -0.0, 0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5, 198.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 70.0, "clock": "07:10", "price": 126.3, "truck": {"km": 96.9, "frac": 0.4615, "v": 15.0, "eta": 102.0, "fuel": 9.82, "arrived": false, "jam": true, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 65.64}, "plan": {"k0": 14, "P": [0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 75.0, "clock": "07:15", "price": 122.5, "truck": {"km": 98.2, "frac": 0.4675, "v": 15.0, "eta": 101.0, "fuel": 9.73, "arrived": false, "jam": true, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 95.31, "cost": 70.69}, "plan": {"k0": 15, "P": [0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 80.0, "clock": "07:20", "price": 118.7, "truck": {"km": 99.4, "frac": 0.4734, "v": 15.0, "eta": 100.0, "fuel": 9.64, "arrived": false, "jam": true, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 74.65}, "plan": {"k0": 16, "P": [0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3, 121.3], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 85.0, "clock": "07:25", "price": 114.8, "truck": {"km": 100.7, "frac": 0.4794, "v": 15.0, "eta": 99.0, "fuel": 9.55, "arrived": false, "jam": true, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 78.48}, "plan": {"k0": 17, "P": [0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5, 128.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 90.0, "clock": "07:30", "price": 111.0, "truck": {"km": 101.9, "frac": 0.4853, "v": 88, "eta": 98.0, "fuel": 9.47, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 82.18}, "plan": {"k0": 18, "P": [0.0, 0.0, -0.0, -0.0, -0.0, -0.0, -0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5, 136.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 95.0, "clock": "07:35", "price": 107.2, "truck": {"km": 109.3, "frac": 0.5202, "v": 88, "eta": 79.0, "fuel": 8.95, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 85.75}, "plan": {"k0": 19, "P": [0.0, 0.0, 0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 100.0, "clock": "07:40", "price": 103.3, "truck": {"km": 116.6, "frac": 0.5552, "v": 88, "eta": 74.0, "fuel": 8.44, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 89.19}, "plan": {"k0": 20, "P": [0.0, 0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 105.0, "clock": "07:45", "price": 99.5, "truck": {"km": 123.9, "frac": 0.5901, "v": 88, "eta": 68.0, "fuel": 7.93, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 0.0, "Pc": 0.0, "Ppre": 0.0, "prod": 0.0, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.0, "mmp": 5.5, "mhp": 2.5, "plp": 62.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.0, "infeas": false}, "naive": {"P": 400.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 21, "P": [0.0, 67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 110.0, "clock": "07:50", "price": 95.7, "truck": {"km": 131.3, "frac": 0.625, "v": 88, "eta": 63.0, "fuel": 7.41, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 67.2, "Pc": 0.0, "Ppre": 0.0, "prod": 1.38, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.12, "mmp": 5.5, "mhp": 2.5, "plp": 64.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 0.54, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 22, "P": [67.2, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 115.0, "clock": "07:55", "price": 91.8, "truck": {"km": 138.6, "frac": 0.6599, "v": 88, "eta": 58.0, "fuel": 6.9, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 395.3, "Pc": 0.0, "Ppre": 0.0, "prod": 7.2, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.72, "mmp": 5.5, "mhp": 2.5, "plp": 73.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 3.56, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 23, "P": [395.3, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9, 114.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 14.82, 28.5, 28.5, 46.5, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 120.0, "clock": "08:00", "price": 88.0, "truck": {"km": 145.9, "frac": 0.6948, "v": 88, "eta": 52.0, "fuel": 6.39, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 0.0, "Ppre": 0.0, "prod": 7.27, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 5.32, "mmp": 5.5, "mhp": 2.5, "plp": 83.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 6.49, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 24, "P": [400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 7.13, 28.5, 28.5, 41.64, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 125.0, "clock": "08:05", "price": 85.0, "truck": {"km": 153.5, "frac": 0.7309, "v": 95, "eta": 47.0, "fuel": 5.86, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 0.0, "Ppre": 0.0, "prod": 7.27, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 5.93, "mmp": 5.5, "mhp": 2.5, "plp": 93.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 9.33, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 25, "P": [400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [0.0, 0.0, 0.0, 0.0, 6.73, 28.5, 28.5, 41.39, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 130.0, "clock": "08:10", "price": 82.0, "truck": {"km": 161.4, "frac": 0.7686, "v": 95, "eta": 41.0, "fuel": 5.3, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 0.0, "Ppre": 0.0, "prod": 7.27, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 6.53, "mmp": 5.5, "mhp": 2.5, "plp": 103.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 12.06, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 26, "P": [400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [0.0, 0.0, 0.0, 6.34, 28.5, 28.5, 41.14, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 135.0, "clock": "08:15", "price": 79.0, "truck": {"km": 169.3, "frac": 0.8063, "v": 95, "eta": 36.0, "fuel": 4.75, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 0.0, "Ppre": 0.0, "prod": 7.27, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 7.14, "mmp": 5.5, "mhp": 2.5, "plp": 114.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 14.69, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 27, "P": [400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [0.0, 0.0, 5.94, 28.5, 28.5, 40.89, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 140.0, "clock": "08:20", "price": 76.0, "truck": {"km": 177.2, "frac": 0.844, "v": 95, "eta": 30.0, "fuel": 4.19, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 0.0, "Ppre": 0.0, "prod": 7.27, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 7.75, "mmp": 5.5, "mhp": 2.5, "plp": 124.0, "pmp": 81.0, "php": 62.0, "deliv": 0.0, "cost": 17.23, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 28, "P": [400.0, 400.0, 400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [0.0, 5.54, 28.5, 28.5, 40.64, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 145.0, "clock": "08:25", "price": 73.0, "truck": {"km": 185.2, "frac": 0.8817, "v": 75, "eta": 24.0, "fuel": 3.64, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 9.66, "Ppre": 0.0, "prod": 7.27, "fmp": 5.41, "fhp": 0.0, "disp": 0.0, "mlp": 7.9, "mmp": 5.95, "mhp": 2.5, "plp": 127.0, "pmp": 88.0, "php": 62.0, "deliv": 0.0, "cost": 19.72, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 29, "P": [400.0, 400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [5.14, 28.5, 28.5, 40.39, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 150.0, "clock": "08:30", "price": 70.0, "truck": {"km": 191.4, "frac": 0.9114, "v": 75, "eta": 18.0, "fuel": 3.2, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 51.66, "Ppre": 0.0, "prod": 7.27, "fmp": 29.58, "fhp": 0.0, "disp": 0.0, "mlp": 6.04, "mmp": 8.42, "mhp": 2.5, "plp": 95.0, "pmp": 127.0, "php": 62.0, "deliv": 0.0, "cost": 22.35, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 30, "P": [400.0, 400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [28.1, 28.5, 40.13, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 155.0, "clock": "08:35", "price": 67.0, "truck": {"km": 197.7, "frac": 0.9412, "v": 75, "eta": 14.0, "fuel": 2.76, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 67.71, "Ppre": 0.0, "prod": 7.27, "fmp": 29.58, "fhp": 0.0, "disp": 0.0, "mlp": 4.18, "mmp": 10.88, "mhp": 2.5, "plp": 65.0, "pmp": 168.0, "php": 62.0, "deliv": 0.0, "cost": 24.97, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 31, "P": [400.0, 400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [28.1, 39.88, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 160.0, "clock": "08:40", "price": 64.0, "truck": {"km": 203.9, "frac": 0.971, "v": 75, "eta": 9.0, "fuel": 2.33, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 104.24, "Ppre": 0.0, "prod": 7.27, "fmp": 11.03, "fhp": 18.55, "disp": 0.0, "mlp": 2.32, "mmp": 11.8, "mhp": 4.05, "plp": 35.0, "pmp": 184.0, "php": 102.0, "deliv": 0.0, "cost": 27.65, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 32, "P": [400.0, 400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [39.23, 46.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 165.0, "clock": "08:45", "price": 61.0, "truck": {"km": 207.8, "frac": 0.9896, "v": 40, "eta": 4.0, "fuel": 2.05, "arrived": false, "jam": false, "refueled": false}, "mpc": {"P": 400.0, "Pc": 150.58, "Ppre": 0.0, "prod": 7.27, "fmp": 0.0, "fhp": 29.16, "disp": 0.0, "mlp": 0.5, "mmp": 11.8, "mhp": 6.48, "plp": 7.0, "pmp": 184.0, "php": 171.0, "deliv": 0.0, "cost": 30.45, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 33, "P": [400.0, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [45.85, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 170.0, "clock": "08:50", "price": 58.0, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": 2.0, "fuel": 1.87, "arrived": true, "jam": false, "refueled": false}, "mpc": {"P": 109.2, "Pc": 0.0, "Ppre": 0.0, "prod": 2.22, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 0.69, "mmp": 11.8, "mhp": 6.48, "plp": 10.0, "pmp": 184.0, "php": 171.0, "deliv": 0.0, "cost": 30.98, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.51}, "plan": {"k0": 34, "P": [109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2, 109.2], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 175.0, "clock": "08:55", "price": 55.0, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": 0.0, "fuel": 1.87, "arrived": true, "jam": false, "refueled": false}, "mpc": {"P": 108.9, "Pc": 0.0, "Ppre": 37.8, "prod": 2.22, "fmp": 0.0, "fhp": 0.0, "disp": 0.03, "mlp": 0.87, "mmp": 2.8, "mhp": 6.48, "plp": 13.0, "pmp": 40.0, "php": 171.0, "deliv": 9.0, "cost": 31.65, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 35, "P": [108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9, 108.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 180.0, "clock": "09:00", "price": 52.0, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": 0.0, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 108.5, "Pc": 0.0, "Ppre": 32.82, "prod": 2.21, "fmp": 0.0, "fhp": 0.0, "disp": 0.026, "mlp": 1.05, "mmp": 1.2, "mhp": 0.26, "plp": 16.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 32.27, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 36, "P": [108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5, 108.5], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 185.0, "clock": "09:05", "price": 50.7, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 108.1, "Pc": 0.0, "Ppre": 0.0, "prod": 2.2, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 1.24, "mmp": 1.2, "mhp": 0.26, "plp": 19.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 32.72, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 37, "P": [108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1, 108.1], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 190.0, "clock": "09:10", "price": 49.3, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 107.7, "Pc": 0.0, "Ppre": 0.0, "prod": 2.19, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 1.42, "mmp": 1.2, "mhp": 0.26, "plp": 21.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 33.17, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 38, "P": [107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7, 107.7], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 195.0, "clock": "09:15", "price": 48.0, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 107.3, "Pc": 0.0, "Ppre": 0.0, "prod": 2.19, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 1.6, "mmp": 1.2, "mhp": 0.26, "plp": 24.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 33.59, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 39, "P": [107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3, 107.3], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 200.0, "clock": "09:20", "price": 46.7, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 106.9, "Pc": 0.0, "Ppre": 0.0, "prod": 2.18, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 1.78, "mmp": 1.2, "mhp": 0.26, "plp": 27.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 34.01, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 40, "P": [106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9, 106.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 205.0, "clock": "09:25", "price": 45.3, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 106.4, "Pc": 0.0, "Ppre": 0.0, "prod": 2.17, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 1.96, "mmp": 1.2, "mhp": 0.26, "plp": 30.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 34.41, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 41, "P": [106.4, 106.4, 106.4, 106.4, 106.4, 106.4, 106.4, 106.4, 106.4, 106.4, 106.4, 106.4, 106.4], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 210.0, "clock": "09:30", "price": 44.0, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 105.9, "Pc": 0.0, "Ppre": 0.0, "prod": 2.16, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 2.14, "mmp": 1.2, "mhp": 0.26, "plp": 32.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 34.8, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 42, "P": [105.9, 105.9, 105.9, 105.9, 105.9, 105.9, 105.9, 105.9, 105.9, 105.9, 105.9, 105.9], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 215.0, "clock": "09:35", "price": 42.7, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 105.3, "Pc": 0.0, "Ppre": 0.0, "prod": 2.15, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 2.32, "mmp": 1.2, "mhp": 0.26, "plp": 35.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 35.17, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 43, "P": [105.3, 105.3, 105.3, 105.3, 105.3, 105.3, 105.3, 105.3, 105.3, 105.3, 105.3], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 220.0, "clock": "09:40", "price": 41.3, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 104.7, "Pc": 0.0, "Ppre": 0.0, "prod": 2.13, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 2.5, "mmp": 1.2, "mhp": 0.26, "plp": 38.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 35.54, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 44, "P": [104.7, 104.7, 104.7, 104.7, 104.7, 104.7, 104.7, 104.7, 104.7, 104.7], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 225.0, "clock": "09:45", "price": 40.0, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 104.0, "Pc": 0.0, "Ppre": 0.0, "prod": 2.12, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 2.68, "mmp": 1.2, "mhp": 0.26, "plp": 41.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 35.88, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 45, "P": [104.0, 104.0, 104.0, 104.0, 104.0, 104.0, 104.0, 104.0, 104.0], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 230.0, "clock": "09:50", "price": 38.7, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 103.2, "Pc": 0.0, "Ppre": 0.0, "prod": 2.1, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 2.85, "mmp": 1.2, "mhp": 0.26, "plp": 44.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 36.21, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 46, "P": [103.2, 103.2, 103.2, 103.2, 103.2, 103.2, 103.2, 103.2], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 235.0, "clock": "09:55", "price": 37.3, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 102.3, "Pc": 0.0, "Ppre": 0.0, "prod": 2.09, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 3.03, "mmp": 1.2, "mhp": 0.26, "plp": 46.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 36.53, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 47, "P": [102.3, 102.3, 102.3, 102.3, 102.3, 102.3, 102.3], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 240.0, "clock": "10:00", "price": 36.0, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 101.3, "Pc": 0.0, "Ppre": 0.0, "prod": 2.07, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 3.2, "mmp": 1.2, "mhp": 0.26, "plp": 49.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 36.84, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 48, "P": [101.3, 101.3, 101.3, 101.3, 101.3, 101.3], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 245.0, "clock": "10:05", "price": 35.6, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 100.0, "Pc": 0.0, "Ppre": 0.0, "prod": 2.04, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 3.37, "mmp": 1.2, "mhp": 0.26, "plp": 52.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 37.13, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 49, "P": [100.0, 100.0, 100.0, 100.0, 100.0], "Pc": [0.0, 0.0, 0.0, 0.0, 0.0]}}, {"t": 250.0, "clock": "10:10", "price": 35.2, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 98.5, "Pc": 0.0, "Ppre": 0.0, "prod": 2.01, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 3.54, "mmp": 1.2, "mhp": 0.26, "plp": 54.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 37.42, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 50, "P": [98.5, 98.5, 98.5, 98.5], "Pc": [0.0, 0.0, 0.0, 0.0]}}, {"t": 255.0, "clock": "10:15", "price": 34.8, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 96.5, "Pc": 0.0, "Ppre": 0.0, "prod": 1.97, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 3.7, "mmp": 1.2, "mhp": 0.26, "plp": 57.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 37.7, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 51, "P": [96.5, 96.5, 96.5], "Pc": [0.0, 0.0, 0.0]}}, {"t": 260.0, "clock": "10:20", "price": 34.3, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 93.5, "Pc": 0.0, "Ppre": 0.0, "prod": 1.91, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 3.86, "mmp": 1.2, "mhp": 0.26, "plp": 59.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 37.97, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 52, "P": [93.5, 93.5], "Pc": [0.0, 0.0]}}, {"t": 265.0, "clock": "10:25", "price": 33.9, "truck": {"km": 210.0, "frac": 1.0, "v": 0.0, "eta": null, "fuel": 1.87, "arrived": true, "jam": false, "refueled": true}, "mpc": {"P": 93.5, "Pc": 0.0, "Ppre": 0.0, "prod": 1.91, "fmp": 0.0, "fhp": 0.0, "disp": 0.0, "mlp": 4.02, "mmp": 1.2, "mhp": 0.26, "plp": 62.0, "pmp": 17.0, "php": 6.0, "deliv": 16.81, "cost": 38.23, "infeas": false}, "naive": {"P": 0.0, "Pc": 0.0, "cost": 92.68}, "plan": {"k0": 53, "P": [93.5], "Pc": [0.0]}}], "events": [{"t": 0, "txt": "El camión sale del centro logístico (210 km). Arranca el MPC económico."}, {"t": 70.0, "txt": "Retención de tráfico en ruta: la ETA aumenta y el MPC replanifica."}, {"t": 174.0, "txt": "El camión llega a la hidrogenera (08:54). Conectando manguera."}, {"t": 185.0, "txt": "Repostaje completado: 16.8 kg a 0,03 kg/s. El camión se va."}], "summary": {"cost_mpc": 38.23, "cost_naive": 92.68, "saving_eur": 54.45, "saving_pct": 58.7, "delivered_kg": 16.81, "eur_kg_mpc": 2.27, "eur_kg_naive": 5.51, "arrival_clock": "08:54"}};
+</script>
+<script>
+/* ============ utilidades ============ */
+const $=id=>document.getElementById(id);
+const D=DATA, S=D.steps, N=S.length, DT=D.meta.dt_min;
+const fmtE=v=>v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const lerp=(a,b,f)=>a+(b-a)*f;
+const reduced=(typeof matchMedia!=='undefined')&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function at(idx){ // interpola entre pasos
+  const i0=Math.min(Math.floor(idx),N-1), i1=Math.min(i0+1,N-1), f=idx-i0;
+  const a=S[i0], b=S[i1], g=(p,k)=>lerp(a[p][k],b[p][k],f);
+  return {i0,a,b,f,
+    t:lerp(a.t,b.t,f), price:lerp(a.price,b.price,f),
+    frac:g('truck','frac'), fuel:g('truck','fuel'), v:g('truck','v'),
+    eta:(a.truck.eta==null)?null:lerp(a.truck.eta,(b.truck.eta==null?a.truck.eta:b.truck.eta),f),
+    arrived:a.truck.arrived, jam:a.truck.jam, refueled:a.truck.refueled,
+    P:g('mpc','P'), Pc:g('mpc','Pc'), prod:g('mpc','prod'),
+    fmp:g('mpc','fmp'), fhp:g('mpc','fhp'), disp:g('mpc','disp'),
+    mlp:g('mpc','mlp'), mmp:g('mpc','mmp'), mhp:g('mpc','mhp'),
+    plp:g('mpc','plp'), pmp:g('mpc','pmp'), php:g('mpc','php'),
+    deliv:g('mpc','deliv'), cost:g('mpc','cost'),
+    nP:g('naive','P'), nCost:g('naive','cost')};
+}
+const clockOf=t=>{const m=6*60+Math.round(t);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);
+  for(const k in attrs)e.setAttribute(k,attrs[k]); if(parent)parent.appendChild(e); return e}
+
+/* ============ franja de ruta ============ */
+const RV=$('route'), RW=1140, ROADY=58, RX0=46, RX1=1056;
+const kmx=km=>RX0+(RX1-RX0)*km/D.meta.route_km;
+let jamA=null,jamB=null;
+S.forEach(s=>{if(s.truck.jam){if(jamA==null)jamA=s.truck.km;jamB=s.truck.km}});
+(function buildRoute(){
+  el('line',{x1:RX0,y1:ROADY,x2:RX1,y2:ROADY,stroke:'#243443','stroke-width':6,'stroke-linecap':'round'},RV);
+  el('line',{x1:RX0,y1:ROADY,x2:RX1,y2:ROADY,stroke:'#31465a','stroke-width':2,'stroke-dasharray':'10 12'},RV);
+  for(let km=0;km<=D.meta.route_km;km+=30){
+    el('line',{x1:kmx(km),y1:ROADY+8,x2:kmx(km),y2:ROADY+13,stroke:'#3a536b'},RV);
+    el('text',{x:kmx(km),y:ROADY+27,fill:'#7E94A8','font-size':9,'text-anchor':'middle'},RV)
+      .textContent=km+' km';
+  }
+  if(jamA!=null){
+    el('line',{id:'jamSeg',x1:kmx(jamA),y1:ROADY,x2:kmx(Math.max(jamB,jamA+2)),y2:ROADY,
+      stroke:'#FF7A66','stroke-width':6,'stroke-linecap':'round',opacity:0},RV);
+    el('text',{id:'jamTxt',x:kmx(jamA),y:ROADY-26,fill:'#FF7A66','font-size':10,
+      'text-anchor':'middle',opacity:0},RV).textContent='⚠ retención';
+  }
+  // hidrogenera al final
+  const st=el('g',{transform:`translate(${RX1+6},${ROADY})`},RV);
+  el('rect',{x:0,y:-22,width:26,height:22,rx:3,fill:'#16242f',stroke:'#5BD6EE'},st);
+  el('text',{x:13,y:-7,fill:'#5BD6EE','font-size':10,'text-anchor':'middle','font-weight':600},st).textContent='H₂';
+  el('text',{x:13,y:16,fill:'#7E94A8','font-size':8.5,'text-anchor':'middle'},st).textContent='estación';
+  // camión
+  const tr=el('g',{id:'truckG'},RV);
+  el('rect',{x:-30,y:-20,width:34,height:15,rx:2.5,fill:'#1b2c3a',stroke:'#5BD6EE','stroke-width':1.2},tr);
+  el('rect',{x:5,y:-15,width:12,height:10,rx:2,fill:'#24384a',stroke:'#8fb6cc','stroke-width':1},tr);
+  el('circle',{cx:-20,cy:-3,r:3.4,fill:'#0C141D',stroke:'#7E94A8'},tr);
+  el('circle',{cx:10,cy:-3,r:3.4,fill:'#0C141D',stroke:'#7E94A8'},tr);
+  el('text',{id:'truckFuel',x:-13,y:-26,fill:'#7E94A8','font-size':9,'text-anchor':'middle'},tr);
+  const bub=el('g',{id:'etaBub'},RV);
+  el('rect',{x:-34,y:0,width:68,height:18,rx:9,fill:'#5BD6EE'},bub);
+  el('text',{id:'etaTxt',x:0,y:12.5,fill:'#06222b','font-size':10,'font-weight':600,'text-anchor':'middle'},bub).textContent='ETA —';
+})();
+
+/* ============ sinóptico P&ID ============ */
+const PV=$('pid');
+const PIPES=[]; // {path, rate:()=>kg/h aprox}
+function pipe(d,color){const p=el('path',{d,fill:'none',stroke:color,'stroke-width':2.4,
+  'stroke-dasharray':'4 8','stroke-linecap':'round',opacity:.95},PV);
+  el('path',{d,fill:'none',stroke:color,'stroke-width':.7,opacity:.25},PV);
+  return p}
+function tank(x,y,w,h,label,cap,color){
+  const g=el('g',{},PV);
+  el('rect',{x,y,width:w,height:h,rx:10,fill:'#0F1923',stroke:'#34495d'},g);
+  const fill=el('rect',{x:x+3,y:y+h-3,width:w-6,height:0,rx:7,fill:color,opacity:.78},g);
+  el('text',{x:x+w/2,y:y-9,fill:'#DEE9F1','font-size':11,'text-anchor':'middle','font-weight':600},g).textContent=label;
+  const pT=el('text',{x:x+w/2,y:y+h+16,fill:color,'font-size':11,'text-anchor':'middle','font-weight':600},g);
+  const mT=el('text',{x:x+w/2,y:y+h+30,fill:'#7E94A8','font-size':9.5,'text-anchor':'middle'},g);
+  return {fill,pT,mT,x,y,w,h,cap};
+}
+let T_LP,T_MP,T_HP, elyTxt, compTxt, dispTxt, truckDock, elyGlow;
+(function buildPID(){
+  // electrolizador
+  const g=el('g',{},PV);
+  el('rect',{x:18,y:120,width:96,height:92,rx:10,fill:'#10202c',stroke:'#5BD6EE'},g);
+  elyGlow=el('rect',{x:18,y:120,width:96,height:92,rx:10,fill:'#5BD6EE',opacity:0},g);
+  el('text',{x:66,y:146,fill:'#DEE9F1','font-size':11,'text-anchor':'middle','font-weight':600},g).textContent='ELECTROLIZADOR';
+  elyTxt=el('text',{x:66,y:182,fill:'#5BD6EE','font-size':15,'text-anchor':'middle','font-weight':600},g);
+  el('text',{x:66,y:200,fill:'#7E94A8','font-size':9.5,'text-anchor':'middle',id:'elyProd'},g);
+  // tanques
+  T_LP=tank(168,108,64,128,'LP · 200 bar',D.meta.caps.lp,'#5BD6EE');
+  T_MP=tank(424,38,64,108,'MP · 350 bar',D.meta.caps.mp,'#B48CFF');
+  T_HP=tank(424,210,64,108,'HP · 500 bar',D.meta.caps.hp,'#FFB454');
+  // compresor
+  const c=el('g',{},PV);
+  el('rect',{x:286,y:140,width:84,height:64,rx:10,fill:'#221a1c',stroke:'#FF7A66'},c);
+  el('circle',{cx:312,cy:172,r:13,fill:'none',stroke:'#FF7A66'},c);
+  el('circle',{cx:344,cy:172,r:13,fill:'none',stroke:'#FF7A66'},c);
+  el('text',{x:328,y:131,fill:'#DEE9F1','font-size':11,'text-anchor':'middle','font-weight':600},c).textContent='COMPRESOR 2 ETAPAS';
+  compTxt=el('text',{x:328,y:222,fill:'#FF7A66','font-size':12,'text-anchor':'middle','font-weight':600},c);
+  // dispensador + camión
+  const dsp=el('g',{},PV);
+  el('rect',{x:540,y:150,width:46,height:62,rx:8,fill:'#10202c',stroke:'#6FDB95'},dsp);
+  el('text',{x:563,y:142,fill:'#DEE9F1','font-size':10,'text-anchor':'middle','font-weight':600},dsp).textContent='DISPENSADOR';
+  el('text',{x:563,y:176,fill:'#6FDB95','font-size':9,'text-anchor':'middle'},dsp).textContent='válvula';
+  el('text',{x:563,y:188,fill:'#6FDB95','font-size':9,'text-anchor':'middle'},dsp).textContent='0,03 kg/s';
+  dispTxt=el('text',{x:563,y:228,fill:'#6FDB95','font-size':11,'text-anchor':'middle','font-weight':600},dsp);
+  truckDock=el('g',{opacity:0},PV);
+  el('rect',{x:600,y:166,width:48,height:22,rx:3,fill:'#1b2c3a',stroke:'#5BD6EE'},truckDock);
+  el('circle',{cx:612,cy:192,r:5,fill:'#0C141D',stroke:'#7E94A8'},truckDock);
+  el('circle',{cx:636,cy:192,r:5,fill:'#0C141D',stroke:'#7E94A8'},truckDock);
+  el('text',{x:624,y:181,fill:'#5BD6EE','font-size':9,'text-anchor':'middle'},truckDock).textContent='820 L';
+  // tuberías (con caudal asociado)
+  PIPES.push({p:pipe('M114 166 H168','#5BD6EE'),r:s=>s.prod});
+  PIPES.push({p:pipe('M232 172 H286','#5BD6EE'),r:s=>s.fmp+s.fhp});
+  PIPES.push({p:pipe('M370 160 C400 160 398 92 424 92','#B48CFF'),r:s=>s.fmp});
+  PIPES.push({p:pipe('M370 184 C400 184 398 264 424 264','#FFB454'),r:s=>s.fhp});
+  PIPES.push({p:pipe('M488 92 C520 92 516 168 540 168','#B48CFF'),r:s=>s.disp*3600*.62});
+  PIPES.push({p:pipe('M488 264 C520 264 516 196 540 196','#FFB454'),r:s=>s.disp*3600*.38});
+  PIPES.push({p:pipe('M586 181 H600','#6FDB95'),r:s=>s.disp*3600});
+  el('text',{x:328,y:362,fill:'#56708a','font-size':9.5,'text-anchor':'middle'},PV)
+    .textContent='precooler 0,35 kWh/kg integrado en el dispensador · líneas punteadas = caudal de H₂';
+  // marcas de requisito en MP/HP
+  [[T_MP,D.meta.req.mp],[T_HP,D.meta.req.hp]].forEach(([t,req])=>{
+    const yy=t.y+t.h-(t.h-6)*req/t.cap;
+    el('line',{x1:t.x-5,y1:yy,x2:t.x+t.w+5,y2:yy,stroke:'#6FDB95','stroke-dasharray':'3 3',opacity:.8},PV);
+  });
+})();
+function setTank(T,m,p){
+  const hh=(T.h-6)*Math.min(m/T.cap,1);
+  T.fill.setAttribute('y',T.y+T.h-3-hh); T.fill.setAttribute('height',Math.max(hh,0));
+  T.pT.textContent=Math.round(p)+' bar';
+  T.mT.textContent=m.toFixed(1)+' / '+T.cap+' kg';
+}
+
+/* ============ gráficas SVG ============ */
+const CW=540,CH=190,PADL=40,PADR=10,PADT=12,PADB=22;
+const TMAX=S[N-1].t;
+const X=t=>PADL+(CW-PADL-PADR)*t/TMAX;
+function axis(svg,ymax,unit,yticks){
+  for(const v of yticks){
+    const y=CH-PADB-(CH-PADT-PADB)*v/ymax;
+    el('line',{x1:PADL,y1:y,x2:CW-PADR,y2:y,stroke:'#1c2b3a'},svg);
+    el('text',{x:PADL-6,y:y+3,fill:'#56708a','font-size':9,'text-anchor':'end'},svg).textContent=v;
+  }
+  for(let t=0;t<=TMAX;t+=60)
+    el('text',{x:X(t),y:CH-7,fill:'#56708a','font-size':9,'text-anchor':'middle'},svg).textContent=clockOf(t);
+  el('text',{x:PADL-6,y:PADT-2,fill:'#56708a','font-size':9,'text-anchor':'end'},svg).textContent=unit;
+}
+const Y=(v,ymax)=>CH-PADB-(CH-PADT-PADB)*Math.min(v/ymax,1.02);
+function pathOf(get,ymax){return S.map((s,i)=>(i?'L':'M')+X(s.t).toFixed(1)+' '+Y(get(s),ymax).toFixed(1)).join('')}
+function clipFor(svg,id){const cp=el('clipPath',{id},el('defs',{},svg));
+  return el('rect',{x:0,y:0,width:PADL,height:CH},cp)}
+let cursors=[],clips=[];
+function chart(svg,ymax,unit,ticks){axis(svg,ymax,unit,ticks);
+  const cl=clipFor(svg,'cl'+svg.id);clips.push(cl);
+  const cur=el('line',{x1:PADL,y1:PADT,x2:PADL,y2:CH-PADB,stroke:'#DEE9F1','stroke-width':1,opacity:.55},svg);
+  cursors.push(cur);return cl}
+// A: precio
+{const svg=$('chA');axis(svg,150,'€/MWh',[0,50,100,150]);
+ const area=pathOf(s=>s.price,150)+`L${X(TMAX)} ${Y(0,150)} L${X(0)} ${Y(0,150)} Z`;
+ el('path',{d:area,fill:'#FFB454',opacity:.14},svg);
+ el('path',{d:pathOf(s=>s.price,150),fill:'none',stroke:'#FFB454','stroke-width':2},svg);
+ const cur=el('line',{x1:PADL,y1:PADT,x2:PADL,y2:CH-PADB,stroke:'#DEE9F1',opacity:.55},svg);cursors.push(cur);}
+// B: potencias
+let planPath;
+{const svg=$('chB');const cl=chart(svg,440,'kW',[0,200,400]);
+ const g=el('g',{'clip-path':'url(#clchB)'},svg);
+ el('path',{d:pathOf(s=>s.naive.P+s.naive.Pc,440),fill:'none',stroke:'#8C9DAE','stroke-width':1.2,opacity:.7},g);
+ el('path',{d:pathOf(s=>s.mpc.Pc,440),fill:'none',stroke:'#FF7A66','stroke-width':1.6},g);
+ el('path',{d:pathOf(s=>s.mpc.P,440),fill:'none',stroke:'#5BD6EE','stroke-width':2.2},g);
+ planPath=el('path',{d:'',fill:'none',stroke:'#5BD6EE','stroke-width':1.4,'stroke-dasharray':'5 5',opacity:.5},svg);}
+// C: tanques
+{const svg=$('chC');chart(svg,22,'kg',[0,10,20]);
+ const g=el('g',{'clip-path':'url(#clchC)'},svg);
+ el('path',{d:pathOf(s=>s.mpc.mlp,22),fill:'none',stroke:'#5BD6EE','stroke-width':2},g);
+ el('path',{d:pathOf(s=>s.mpc.mmp,22),fill:'none',stroke:'#B48CFF','stroke-width':2},g);
+ el('path',{d:pathOf(s=>s.mpc.mhp,22),fill:'none',stroke:'#FFB454','stroke-width':2},g);}
+// D: coste
+{const svg=$('chD');chart(svg,100,'€',[0,50,100]);
+ const g=el('g',{'clip-path':'url(#clchD)'},svg);
+ const a1=pathOf(s=>s.naive.cost,100),a2=pathOf(s=>s.mpc.cost,100);
+ const band=a1+[...S].reverse().map(s=>'L'+X(s.t).toFixed(1)+' '+Y(s.mpc.cost,100).toFixed(1)).join('')+'Z';
+ el('path',{d:band,fill:'#6FDB95',opacity:.10},g);
+ el('path',{d:a1,fill:'none',stroke:'#8C9DAE','stroke-width':2},g);
+ el('path',{d:a2,fill:'none',stroke:'#5BD6EE','stroke-width':2.2},g);}
+
+/* ============ registro de eventos ============ */
+const logEl=$('log');
+D.events.forEach(e=>{
+  const li=document.createElement('li');
+  li.innerHTML=`<span class="tt">${clockOf(e.t)}</span><span>${e.txt}</span>`;
+  li.dataset.t=e.t; logEl.appendChild(li);
+});
+
+/* ============ render por frame ============ */
+const targetDeliv=D.summary.delivered_kg;
+function render(idx){
+  const s=at(idx), t=s.t;
+  $('clock').textContent=clockOf(t);
+  $('tm').textContent=clockOf(t)+' / '+clockOf(TMAX);
+  // KPIs
+  if(s.refueled){$('kEta').textContent='✔ hecho';$('kEtaS').textContent='repostado y en ruta';}
+  else if(s.arrived){$('kEta').textContent='0 min';$('kEtaS').textContent='repostando · 0,03 kg/s';}
+  else{$('kEta').textContent=Math.round(s.eta)+' min';
+       $('kEtaS').textContent='llegada ~'+clockOf(t+s.eta)+(s.jam?' · ⚠ retención':'');}
+  $('kCost').textContent=fmtE(s.cost);
+  $('kNaive').textContent=fmtE(s.nCost);
+  const sv=s.nCost-s.cost;
+  $('kSave').textContent=fmtE(sv);
+  $('kSaveS').textContent=s.nCost>0?('−'+(100*sv/s.nCost).toFixed(0)+'% de coste eléctrico'):'—';
+  // ruta
+  const tx=kmx(s.frac*D.meta.route_km);
+  document.getElementById('truckG').setAttribute('transform',`translate(${tx},${ROADY})`);
+  $('truckFuel').textContent=s.fuel.toFixed(1)+' kg';
+  const bub=$('etaBub');
+  if(s.refueled){bub.setAttribute('opacity',0);}
+  else{bub.setAttribute('opacity',1);
+    bub.setAttribute('transform',`translate(${Math.min(tx,RX1-40)},${ROADY+14})`);
+    $('etaTxt').textContent=s.arrived?'repostando':('ETA '+Math.round(s.eta)+"'");}
+  const js=document.getElementById('jamSeg');
+  if(js){const on=s.jam?1:(t>D.meta.jam.t_end?0.25:0);
+    js.setAttribute('opacity',on);document.getElementById('jamTxt').setAttribute('opacity',s.jam?1:0);}
+  // sinóptico
+  setTank(T_LP,s.mlp,s.plp);setTank(T_MP,s.mmp,s.pmp);setTank(T_HP,s.mhp,s.php);
+  elyTxt.textContent=Math.round(s.P)+' kW';
+  document.getElementById('elyProd').textContent=s.prod.toFixed(1)+' kg/h';
+  elyGlow.setAttribute('opacity',0.10*s.P/D.meta.P_ely_max);
+  compTxt.textContent=(s.fmp+s.fhp).toFixed(1)+' kg/h · '+Math.round(s.Pc)+' kW';
+  dispTxt.textContent=s.disp>0?(s.disp.toFixed(3)+' kg/s'):'en espera';
+  truckDock.setAttribute('opacity',(s.arrived&&!s.refueled)?1:0);
+  // chips
+  $('cEly').textContent=Math.round(s.P)+' kW';
+  $('cComp').textContent=(s.fmp+s.fhp).toFixed(1)+' kg/h';
+  $('cPrice').textContent=Math.round(s.price)+' €/MWh';
+  $('cDeliv').textContent=s.deliv.toFixed(1)+' / '+targetDeliv.toFixed(1)+' kg';
+  $('cDelivBar').style.width=(100*s.deliv/targetDeliv)+'%';
+  // gráficas
+  const cx=X(t);
+  cursors.forEach(c=>{c.setAttribute('x1',cx);c.setAttribute('x2',cx)});
+  clips.forEach(c=>c.setAttribute('width',cx));
+  const plan=S[s.i0].plan;
+  if(plan&&plan.P){
+    planPath.setAttribute('d',plan.P.map((v,i)=>{
+      const tt=(plan.k0+i)*DT;return (i?'L':'M')+X(tt).toFixed(1)+' '+Y(v,440).toFixed(1)}).join(''));
+  }else planPath.setAttribute('d','');
+  $('vPrice').textContent='ahora: '+Math.round(s.price)+' €/MWh';
+  $('vPow').textContent=Math.round(s.P)+' kW ely · '+Math.round(s.Pc)+' kW comp';
+  $('vTank').textContent='LP '+s.mlp.toFixed(1)+' · MP '+s.mmp.toFixed(1)+' · HP '+s.mhp.toFixed(1)+' kg';
+  $('vCost').textContent='ahorro: '+fmtE(sv);
+  // log
+  let last=null;
+  logEl.querySelectorAll('li').forEach(li=>{
+    const on=+li.dataset.t<=t+0.01; li.classList.toggle('on',on); if(on)last=li;
+    li.classList.remove('latest')});
+  if(last)last.classList.add('latest');
+  // flujo en tuberías
+  if(!reduced)PIPES.forEach(o=>{
+    o._off=(o._off||0)-Math.min(o.r(s),120)*0.012;
+    o.p.setAttribute('stroke-dashoffset',o._off.toFixed(2));});
+  // banner final
+  if(idx>=N-1.001){
+    const f=$('final');
+    f.innerHTML=`Jornada completada — el camión repostó <b>${D.summary.delivered_kg} kg</b> a su llegada (${D.summary.arrival_clock}). `+
+      `Coste eléctrico: <b>${fmtE(D.summary.cost_mpc)}</b> con MPC frente a ${fmtE(D.summary.cost_naive)} sin optimizar `+
+      `(<b>${D.summary.eur_kg_mpc} €/kg</b> vs ${D.summary.eur_kg_naive} €/kg): ahorro de <b>${fmtE(D.summary.saving_eur)} (${D.summary.saving_pct}%)</b>.`;
+    f.classList.add('show');
+  } else $('final').classList.remove('show');
+}
+
+/* ============ playback ============ */
+let idx=0,playing=false,spd=1.6,raf=null,tPrev=null;
+const scrub=$('scrub');
+function loop(ts){
+  if(!playing)return;
+  if(tPrev!=null){idx=Math.min(idx+spd*(ts-tPrev)/1000,N-1);}
+  tPrev=ts; scrub.value=Math.round(1000*idx/(N-1)); render(idx);
+  if(idx>=N-1){playing=false;$('bPlay').textContent='↺ Repetir';return}
+  raf=requestAnimationFrame(loop);
+}
+$('bPlay').onclick=()=>{
+  if(idx>=N-1){idx=0}
+  playing=!playing;$('bPlay').textContent=playing?'❚❚ Pausa':'▶ Reproducir';
+  tPrev=null; if(playing)raf=requestAnimationFrame(loop);};
+document.querySelectorAll('.spd').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.spd').forEach(x=>{x.classList.remove('on');x.setAttribute('aria-pressed','false')});
+  b.classList.add('on');b.setAttribute('aria-pressed','true');spd=+b.dataset.s;});
+scrub.oninput=()=>{idx=(N-1)*scrub.value/1000;render(idx)};
+render(0);
+</script>
+</body>
+</html>
